@@ -137,10 +137,36 @@
              return new Date(y, m - 1, d);
         }
 
-        // --- PDF LOGIC ---
+        // --- PDF LOGIC (CORRIGIDO: PAGINAÇÃO E RODAPÉ) ---
         const generateContractPDF = (contract, templateText) => {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
+            
+            // Configurações da Página
+            const pageHeight = doc.internal.pageSize.height;
+            const footerY = pageHeight - 20; // Posição do rodapé
+            const marginBottom = 30; // Margem inferior para o texto não bater no rodapé
+            const marginTop = 20;
+            const marginLeft = 15;
+            let cursorY = 40; // Posição inicial do texto
+
+            // Função para desenhar cabeçalho (apenas 1ª página ou todas, opcional)
+            const drawHeader = () => {
+                doc.setFontSize(18);
+                doc.text(`Contrato de Locação - ${contract.contractId}`, 105, 20, null, null, "center");
+                doc.setFontSize(12);
+            };
+
+            // Função para desenhar rodapé
+            const drawFooter = () => {
+                const footerText = "LVD Turismo - Transporte com Segurança e Qualidade";
+                doc.setLineWidth(0.5);
+                doc.line(marginLeft, footerY - 5, 210 - marginLeft, footerY - 5);
+                doc.setFontSize(10);
+                doc.text(footerText, 105, footerY, null, null, "center");
+            };
+
+            // Processar texto
             const fullText = templateText
                 .replace(/{{NOME}}/g, contract.clientName).replace(/{{CPF}}/g, contract.clientCpf)
                 .replace(/{{DESTINO}}/g, contract.destination).replace(/{{ORIGEM}}/g, contract.origin)
@@ -148,13 +174,28 @@
                 .replace(/{{VALOR_TOTAL}}/g, formatMoney(contract.totalValue)).replace(/{{SINAL}}/g, formatMoney(contract.signalValue))
                 .replace(/{{CONTRATO_ID}}/g, contract.contractId);
 
-            doc.setFontSize(18);
-            doc.text(`Contrato de Locação - ${contract.contractId}`, 105, 20, null, null, "center");
-            doc.setFontSize(12);
-            doc.text(doc.splitTextToSize(fullText, 180), 15, 40);
-            doc.line(15, 270, 195, 270);
-            doc.setFontSize(10);
-            doc.text("LVD Turismo - Transporte com Segurança e Qualidade", 105, 275, null, null, "center");
+            const splitText = doc.splitTextToSize(fullText, 180);
+
+            // Início da renderização
+            drawHeader();
+
+            splitText.forEach(line => {
+                // Verifica se vai estourar a margem inferior
+                if (cursorY > (pageHeight - marginBottom)) {
+                    drawFooter(); // Desenha rodapé na página atual
+                    doc.addPage(); // Nova página
+                    cursorY = marginTop; // Reseta cursor
+                    // drawHeader(); // Se quiser cabeçalho em todas as páginas, descomente
+                }
+                
+                doc.setFontSize(12);
+                doc.text(line, marginLeft, cursorY);
+                cursorY += 7; // Altura da linha
+            });
+
+            // Rodapé na última página
+            drawFooter();
+
             doc.save(`Contrato_${contract.contractId}.pdf`);
         };
 
@@ -552,9 +593,13 @@
                     const snapC = await window.firebaseData.getDocs(qC);
                     setContracts(snapC.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
-                    const qM = window.firebaseData.query(window.firebaseData.collection(window.firebaseData.db, "maintenances"), window.firebaseData.orderBy("startDate", "asc"));
+                    // CORREÇÃO: Removemos orderBy para evitar erro de índice no Firebase, ordenação via JS
+                    const qM = window.firebaseData.query(window.firebaseData.collection(window.firebaseData.db, "maintenances"));
                     const snapM = await window.firebaseData.getDocs(qM);
-                    setMaintenances(snapM.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                    const loadedMaintenances = snapM.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    // Ordenação em memória
+                    loadedMaintenances.sort((a,b) => (a.startDate > b.startDate) ? 1 : -1);
+                    setMaintenances(loadedMaintenances);
 
                     const docConfig = await window.firebaseData.getDoc(window.firebaseData.doc(window.firebaseData.db, "settings", "general"));
                     if (docConfig.exists()) {
@@ -567,7 +612,8 @@
             const saveConfig = async () => {
                 setLoading(true);
                 try {
-                    await window.firebaseData.setDoc(window.firebaseData.doc(window.firebaseData.db, "settings", "general"), { signalPercent: configSignal, template: contractTemplate });
+                    // CORREÇÃO: Usar { merge: true } para não sobrescrever o documento inteiro
+                    await window.firebaseData.setDoc(window.firebaseData.doc(window.firebaseData.db, "settings", "general"), { signalPercent: configSignal, template: contractTemplate }, { merge: true });
                     showMsg("success", "Configurações salvas!");
                 } catch(e) { console.error(e); showMsg("error", "Erro ao salvar."); }
                 setLoading(false);
