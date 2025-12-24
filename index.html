@@ -189,6 +189,255 @@
             doc.save(`Recibo_${contract.contractId}_${type}.pdf`);
         };
 
+        // --- COMPONENTES DE TELA (Movidos para fora do App para evitar perda de foco) ---
+
+        const Sidebar = ({ view, setView, handleLogout }) => (
+            <div className="w-64 bg-[#1e293b] border-r border-slate-700 text-slate-200 min-h-screen flex flex-col fixed left-0 top-0 z-10 shadow-xl">
+                <div className="p-6">
+                        <div className="font-bold text-2xl tracking-wider text-blue-400">LVD <span className="text-white">ADMIN</span></div>
+                </div>
+                <nav className="flex-1 mt-2">
+                    {[
+                        { id: 'dashboard', icon: 'LayoutDashboard', label: 'Painel' },
+                        { id: 'new_contract', icon: 'FilePlus', label: 'Novo Contrato' },
+                        { id: 'contracts', icon: 'FileText', label: 'Contratos' },
+                        { id: 'calendar', icon: 'Calendar', label: 'Calendário' },
+                        { id: 'finance', icon: 'DollarSign', label: 'Financeiro' },
+                        { id: 'settings', icon: 'Settings', label: 'Configurações' },
+                    ].map(item => (
+                        <div 
+                            key={item.id}
+                            onClick={() => setView(item.id)}
+                            className={`sidebar-item flex items-center px-6 py-4 cursor-pointer border-l-4 ${view === item.id ? 'bg-slate-800 border-blue-500 text-white' : 'border-transparent hover:text-white text-slate-400'}`}
+                        >
+                            <i data-lucide={item.icon} className={`mr-3 w-5 h-5 ${view === item.id ? 'text-blue-400' : ''}`}></i>
+                            {item.label}
+                        </div>
+                    ))}
+                </nav>
+                <div className="p-4 border-t border-slate-700 bg-slate-800/50">
+                    <button onClick={handleLogout} className="flex items-center text-slate-400 hover:text-red-400 transition w-full">
+                        <i data-lucide="LogOut" className="mr-2 w-4 h-4"></i> Sair
+                    </button>
+                </div>
+            </div>
+        );
+
+        const DashboardView = ({ contracts }) => {
+            const totalContracts = contracts.length;
+            const totalRevenue = contracts.reduce((acc, c) => acc + c.totalValue, 0);
+            const pendingSignal = contracts.filter(c => c.statusSignal === 'pending').length;
+
+            return (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <Card className="border-l-4 border-l-blue-500 bg-slate-800">
+                        <h3 className="text-slate-400 text-sm uppercase font-semibold">Contratos Ativos</h3>
+                        <p className="text-3xl font-bold text-white mt-1">{totalContracts}</p>
+                    </Card>
+                    <Card className="border-l-4 border-l-emerald-500 bg-slate-800">
+                        <h3 className="text-slate-400 text-sm uppercase font-semibold">Faturamento Previsto</h3>
+                        <p className="text-3xl font-bold text-white mt-1">{formatMoney(totalRevenue)}</p>
+                    </Card>
+                    <Card className="border-l-4 border-l-amber-500 bg-slate-800">
+                        <h3 className="text-slate-400 text-sm uppercase font-semibold">Sinais Pendentes</h3>
+                        <p className="text-3xl font-bold text-white mt-1">{pendingSignal}</p>
+                    </Card>
+                </div>
+            );
+        };
+
+        const NewContractView = ({ newContract, setNewContract, handleCreateContract, loading }) => (
+            <Card>
+                <h2 className="text-xl font-bold mb-6 flex items-center text-blue-400"><i data-lucide="FilePlus" className="mr-2"></i> Novo Contrato</h2>
+                <form onSubmit={handleCreateContract} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2"><h3 className="font-bold text-slate-500 border-b border-slate-700 pb-2 mb-2 uppercase text-xs tracking-wide">Dados do Cliente</h3></div>
+                    <Input label="Nome Completo" value={newContract.clientName} onChange={e => setNewContract({...newContract, clientName: e.target.value})} required />
+                    <Input label="CPF" value={newContract.clientCpf} onChange={e => setNewContract({...newContract, clientCpf: e.target.value})} required placeholder="000.000.000-00" />
+                    
+                    <div className="md:col-span-2"><h3 className="font-bold text-slate-500 border-b border-slate-700 pb-2 mb-2 mt-2 uppercase text-xs tracking-wide">Dados da Viagem</h3></div>
+                    <Input label="Local de Embarque" value={newContract.origin} onChange={e => setNewContract({...newContract, origin: e.target.value})} required />
+                    <Input label="Destino" value={newContract.destination} onChange={e => setNewContract({...newContract, destination: e.target.value})} required />
+                    <Input label="Data Ida" type="date" value={newContract.startDate} onChange={e => setNewContract({...newContract, startDate: e.target.value})} required />
+                    <Input label="Data Volta" type="date" value={newContract.endDate} onChange={e => setNewContract({...newContract, endDate: e.target.value})} required />
+                    
+                    <div className="md:col-span-2"><h3 className="font-bold text-slate-500 border-b border-slate-700 pb-2 mb-2 mt-2 uppercase text-xs tracking-wide">Valores</h3></div>
+                    <Input label="Valor Total (R$)" type="number" value={newContract.totalValue} onChange={e => setNewContract({...newContract, totalValue: e.target.value})} required />
+                    <div className="md:col-span-2 bg-slate-900 border border-slate-700 p-4 rounded text-sm text-slate-300">
+                        <p className="text-blue-400 mb-1"><strong>Cálculo Automático:</strong></p>
+                        <div className="grid grid-cols-2 gap-4">
+                            <p>Sinal (20%): <span className="font-mono text-white">{formatMoney(newContract.totalValue * 0.2)}</span></p>
+                            <p>Restante: <span className="font-mono text-white">{formatMoney(newContract.totalValue * 0.8)}</span></p>
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500">Vencimento Restante: 2 dias antes da ida</p>
+                    </div>
+
+                    <div className="md:col-span-2 pt-4">
+                        <Button className="w-full h-12 text-lg shadow-blue-900/50">Gerar Contrato</Button>
+                    </div>
+                </form>
+            </Card>
+        );
+
+        const ContractsView = ({ contracts, contractTemplate }) => (
+            <Card>
+                <h2 className="text-xl font-bold mb-4 text-blue-400">Gerenciar Contratos</h2>
+                <div className="overflow-x-auto rounded border border-slate-700">
+                    <table className="w-full text-sm text-left text-slate-300">
+                        <thead className="text-xs text-slate-400 uppercase bg-slate-900">
+                            <tr>
+                                <th className="px-4 py-3">Contrato</th>
+                                <th className="px-4 py-3">Cliente</th>
+                                <th className="px-4 py-3">Destino</th>
+                                <th className="px-4 py-3">Datas</th>
+                                <th className="px-4 py-3">Valor</th>
+                                <th className="px-4 py-3">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-700">
+                            {contracts.map(c => (
+                                <tr key={c.id} className="bg-slate-800 hover:bg-slate-750 transition-colors">
+                                    <td className="px-4 py-3 font-medium text-white">{c.contractId}</td>
+                                    <td className="px-4 py-3">{c.clientName}</td>
+                                    <td className="px-4 py-3">{c.destination}</td>
+                                    <td className="px-4 py-3">{formatDate(c.startDate)} à {formatDate(c.endDate)}</td>
+                                    <td className="px-4 py-3 font-mono text-emerald-400">{formatMoney(c.totalValue)}</td>
+                                    <td className="px-4 py-3">
+                                        <Button variant="secondary" className="text-xs py-1" onClick={() => generateContractPDF(c, contractTemplate)}>
+                                            <i data-lucide="Printer" className="w-3 h-3"></i> PDF
+                                        </Button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {contracts.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-slate-500">Nenhum contrato encontrado.</td></tr>}
+                        </tbody>
+                    </table>
+                </div>
+            </Card>
+        );
+
+        const FinanceView = ({ contracts, updatePaymentStatus }) => {
+            const totalPrevisto = contracts.reduce((acc, c) => acc + c.totalValue, 0);
+            const totalRecebidoSignal = contracts.filter(c => c.statusSignal === 'paid').reduce((acc, c) => acc + c.signalValue, 0);
+            const totalRecebidoRest = contracts.filter(c => c.statusRemaining === 'paid').reduce((acc, c) => acc + c.remainingValue, 0);
+            const totalRecebido = totalRecebidoSignal + totalRecebidoRest;
+
+            return (
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Card className="bg-emerald-900/30 border-emerald-800/50">
+                            <h3 className="text-emerald-400 font-bold uppercase text-xs">Total Recebido (Caixa)</h3>
+                            <p className="text-2xl text-white font-mono">{formatMoney(totalRecebido)}</p>
+                        </Card>
+                        <Card className="bg-slate-800 border-slate-700">
+                            <h3 className="text-slate-400 font-bold uppercase text-xs">Total em Contratos (Previsto)</h3>
+                            <p className="text-2xl text-white font-mono">{formatMoney(totalPrevisto)}</p>
+                        </Card>
+                    </div>
+
+                    <Card>
+                        <h2 className="text-xl font-bold mb-4 text-blue-400">Controle de Recebimentos</h2>
+                        <div className="overflow-x-auto rounded border border-slate-700">
+                            <table className="w-full text-sm text-left text-slate-300">
+                                <thead className="bg-slate-900 text-xs uppercase text-slate-400">
+                                    <tr>
+                                        <th className="p-3">Contrato</th>
+                                        <th className="p-3">Sinal (20%)</th>
+                                        <th className="p-3">Restante</th>
+                                        <th className="p-3">Vencimento Rest.</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-700">
+                                    {contracts.map(c => (
+                                        <tr key={c.id} className="bg-slate-800 hover:bg-slate-750">
+                                            <td className="p-3">
+                                                <div className="font-bold text-white">{c.contractId}</div>
+                                                <div className="text-xs text-slate-500">{c.clientName}</div>
+                                            </td>
+                                            <td className="p-3">
+                                                <div className="mb-1 font-mono">{formatMoney(c.signalValue)}</div>
+                                                {c.statusSignal === 'paid' ? (
+                                                    <span className="text-xs bg-emerald-900/50 text-emerald-400 border border-emerald-800 px-2 py-1 rounded flex w-fit items-center gap-1">
+                                                        <i data-lucide="CheckCircle" className="w-3 h-3"></i> Pago
+                                                        <button onClick={() => generateReceiptPDF(c, 'signal', c.signalValue)} className="ml-2 hover:text-white text-emerald-300"><i data-lucide="Printer" className="w-3 h-3"></i></button>
+                                                    </span>
+                                                ) : (
+                                                    <Button variant="primary" className="text-xs py-1 px-3" onClick={() => updatePaymentStatus(c.id, 'statusSignal', 'paid')}>
+                                                        Receber
+                                                    </Button>
+                                                )}
+                                            </td>
+                                            <td className="p-3">
+                                                <div className="mb-1 font-mono">{formatMoney(c.remainingValue)}</div>
+                                                {c.statusRemaining === 'paid' ? (
+                                                    <span className="text-xs bg-emerald-900/50 text-emerald-400 border border-emerald-800 px-2 py-1 rounded flex w-fit items-center gap-1">
+                                                        <i data-lucide="CheckCircle" className="w-3 h-3"></i> Pago
+                                                        <button onClick={() => generateReceiptPDF(c, 'remaining', c.remainingValue)} className="ml-2 hover:text-white text-emerald-300"><i data-lucide="Printer" className="w-3 h-3"></i></button>
+                                                    </span>
+                                                ) : (
+                                                    <Button variant="primary" className="text-xs py-1 px-3" onClick={() => updatePaymentStatus(c.id, 'statusRemaining', 'paid')}>
+                                                        Receber
+                                                    </Button>
+                                                )}
+                                            </td>
+                                            <td className="p-3">
+                                                <span className={new Date(c.dueRestDate) < new Date() && c.statusRemaining !== 'paid' ? "text-red-400 font-bold" : ""}>
+                                                    {formatDate(c.dueRestDate)}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
+                </div>
+            );
+        };
+
+        const CalendarView = ({ contracts }) => {
+            const sortedTrips = [...contracts].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+
+            return (
+                <Card>
+                    <h2 className="text-xl font-bold mb-4 text-blue-400">Agenda de Viagens</h2>
+                    <div className="space-y-4">
+                        {sortedTrips.map(c => (
+                            <div key={c.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 bg-slate-700/50 border border-slate-600 rounded-lg hover:bg-slate-700 transition">
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-slate-800 border border-slate-600 text-blue-400 p-3 rounded-lg text-center min-w-[80px]">
+                                        <div className="text-xs uppercase font-bold text-slate-500">{parseDateBR(c.startDate).toLocaleString('pt-BR', { month: 'short' })}</div>
+                                        <div className="text-2xl font-bold">{parseDateBR(c.startDate).getDate()}</div>
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-lg text-white">{c.destination}</h3>
+                                        <p className="text-slate-400 text-sm">Contrato: {c.contractId} | {c.clientName}</p>
+                                    </div>
+                                </div>
+                                <div className="mt-2 md:mt-0 text-right">
+                                    <span className="text-sm bg-slate-800 border border-slate-600 px-3 py-1 rounded text-slate-300">Retorno: {formatDate(c.endDate)}</span>
+                                </div>
+                            </div>
+                        ))}
+                        {sortedTrips.length === 0 && <p className="text-center text-slate-500 py-8">Nenhuma viagem agendada.</p>}
+                    </div>
+                </Card>
+            );
+        };
+        
+        const SettingsView = ({ contractTemplate, setContractTemplate }) => (
+            <Card>
+                <h2 className="text-xl font-bold mb-4 text-blue-400">Configurar Contrato</h2>
+                <p className="text-sm text-slate-400 mb-2">
+                    Edite o texto padrão do contrato. Use as variáveis: {'{{NOME}}'}, {'{{CPF}}'}, {'{{DESTINO}}'}, {'{{ORIGEM}}'}, {'{{DATA_IDA}}'}, {'{{DATA_VOLTA}}'}, {'{{VALOR_TOTAL}}'}, {'{{SINAL}}'}, {'{{CONTRATO_ID}}'}.
+                </p>
+                <textarea 
+                    className="w-full h-64 p-4 bg-slate-900 border border-slate-600 text-slate-200 rounded font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    value={contractTemplate}
+                    onChange={(e) => setContractTemplate(e.target.value)}
+                />
+            </Card>
+        );
+
         // --- APP PRINCIPAL ---
         const App = () => {
             const [user, setUser] = useState(null);
@@ -324,7 +573,7 @@
                 }
             };
 
-            // --- TELAS ---
+            // --- TELAS (AGORA AS TELAS SÃO RENDERIZADAS CONDICIONALMENTE NO JSX PRINCIPAL) ---
 
             if (!user) {
                 return (
@@ -352,261 +601,9 @@
                 );
             }
 
-            // MENU LATERAL (DARK)
-            const Sidebar = () => (
-                <div className="w-64 bg-[#1e293b] border-r border-slate-700 text-slate-200 min-h-screen flex flex-col fixed left-0 top-0 z-10 shadow-xl">
-                    <div className="p-6">
-                         <div className="font-bold text-2xl tracking-wider text-blue-400">LVD <span className="text-white">ADMIN</span></div>
-                    </div>
-                    <nav className="flex-1 mt-2">
-                        {[
-                            { id: 'dashboard', icon: 'LayoutDashboard', label: 'Painel' },
-                            { id: 'new_contract', icon: 'FilePlus', label: 'Novo Contrato' },
-                            { id: 'contracts', icon: 'FileText', label: 'Contratos' },
-                            { id: 'calendar', icon: 'Calendar', label: 'Calendário' },
-                            { id: 'finance', icon: 'DollarSign', label: 'Financeiro' },
-                            { id: 'settings', icon: 'Settings', label: 'Configurações' },
-                        ].map(item => (
-                            <div 
-                                key={item.id}
-                                onClick={() => setView(item.id)}
-                                className={`sidebar-item flex items-center px-6 py-4 cursor-pointer border-l-4 ${view === item.id ? 'bg-slate-800 border-blue-500 text-white' : 'border-transparent hover:text-white text-slate-400'}`}
-                            >
-                                <i data-lucide={item.icon} className={`mr-3 w-5 h-5 ${view === item.id ? 'text-blue-400' : ''}`}></i>
-                                {item.label}
-                            </div>
-                        ))}
-                    </nav>
-                    <div className="p-4 border-t border-slate-700 bg-slate-800/50">
-                        <button onClick={handleLogout} className="flex items-center text-slate-400 hover:text-red-400 transition w-full">
-                            <i data-lucide="LogOut" className="mr-2 w-4 h-4"></i> Sair
-                        </button>
-                    </div>
-                </div>
-            );
-
-            // COMPONENTES DE VIZUALIZAÇÃO
-            const DashboardView = () => {
-                const totalContracts = contracts.length;
-                const totalRevenue = contracts.reduce((acc, c) => acc + c.totalValue, 0);
-                const pendingSignal = contracts.filter(c => c.statusSignal === 'pending').length;
-
-                return (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <Card className="border-l-4 border-l-blue-500 bg-slate-800">
-                            <h3 className="text-slate-400 text-sm uppercase font-semibold">Contratos Ativos</h3>
-                            <p className="text-3xl font-bold text-white mt-1">{totalContracts}</p>
-                        </Card>
-                        <Card className="border-l-4 border-l-emerald-500 bg-slate-800">
-                            <h3 className="text-slate-400 text-sm uppercase font-semibold">Faturamento Previsto</h3>
-                            <p className="text-3xl font-bold text-white mt-1">{formatMoney(totalRevenue)}</p>
-                        </Card>
-                        <Card className="border-l-4 border-l-amber-500 bg-slate-800">
-                            <h3 className="text-slate-400 text-sm uppercase font-semibold">Sinais Pendentes</h3>
-                            <p className="text-3xl font-bold text-white mt-1">{pendingSignal}</p>
-                        </Card>
-                    </div>
-                );
-            };
-
-            const NewContractView = () => (
-                <Card>
-                    <h2 className="text-xl font-bold mb-6 flex items-center text-blue-400"><i data-lucide="FilePlus" className="mr-2"></i> Novo Contrato</h2>
-                    <form onSubmit={handleCreateContract} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="md:col-span-2"><h3 className="font-bold text-slate-500 border-b border-slate-700 pb-2 mb-2 uppercase text-xs tracking-wide">Dados do Cliente</h3></div>
-                        <Input label="Nome Completo" value={newContract.clientName} onChange={e => setNewContract({...newContract, clientName: e.target.value})} required />
-                        <Input label="CPF" value={newContract.clientCpf} onChange={e => setNewContract({...newContract, clientCpf: e.target.value})} required placeholder="000.000.000-00" />
-                        
-                        <div className="md:col-span-2"><h3 className="font-bold text-slate-500 border-b border-slate-700 pb-2 mb-2 mt-2 uppercase text-xs tracking-wide">Dados da Viagem</h3></div>
-                        <Input label="Local de Embarque" value={newContract.origin} onChange={e => setNewContract({...newContract, origin: e.target.value})} required />
-                        <Input label="Destino" value={newContract.destination} onChange={e => setNewContract({...newContract, destination: e.target.value})} required />
-                        <Input label="Data Ida" type="date" value={newContract.startDate} onChange={e => setNewContract({...newContract, startDate: e.target.value})} required />
-                        <Input label="Data Volta" type="date" value={newContract.endDate} onChange={e => setNewContract({...newContract, endDate: e.target.value})} required />
-                        
-                        <div className="md:col-span-2"><h3 className="font-bold text-slate-500 border-b border-slate-700 pb-2 mb-2 mt-2 uppercase text-xs tracking-wide">Valores</h3></div>
-                        <Input label="Valor Total (R$)" type="number" value={newContract.totalValue} onChange={e => setNewContract({...newContract, totalValue: e.target.value})} required />
-                        <div className="md:col-span-2 bg-slate-900 border border-slate-700 p-4 rounded text-sm text-slate-300">
-                            <p className="text-blue-400 mb-1"><strong>Cálculo Automático:</strong></p>
-                            <div className="grid grid-cols-2 gap-4">
-                                <p>Sinal (20%): <span className="font-mono text-white">{formatMoney(newContract.totalValue * 0.2)}</span></p>
-                                <p>Restante: <span className="font-mono text-white">{formatMoney(newContract.totalValue * 0.8)}</span></p>
-                            </div>
-                            <p className="mt-2 text-xs text-slate-500">Vencimento Restante: 2 dias antes da ida</p>
-                        </div>
-
-                        <div className="md:col-span-2 pt-4">
-                            <Button className="w-full h-12 text-lg shadow-blue-900/50">Gerar Contrato</Button>
-                        </div>
-                    </form>
-                </Card>
-            );
-
-            const ContractsView = () => (
-                <Card>
-                    <h2 className="text-xl font-bold mb-4 text-blue-400">Gerenciar Contratos</h2>
-                    <div className="overflow-x-auto rounded border border-slate-700">
-                        <table className="w-full text-sm text-left text-slate-300">
-                            <thead className="text-xs text-slate-400 uppercase bg-slate-900">
-                                <tr>
-                                    <th className="px-4 py-3">Contrato</th>
-                                    <th className="px-4 py-3">Cliente</th>
-                                    <th className="px-4 py-3">Destino</th>
-                                    <th className="px-4 py-3">Datas</th>
-                                    <th className="px-4 py-3">Valor</th>
-                                    <th className="px-4 py-3">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-700">
-                                {contracts.map(c => (
-                                    <tr key={c.id} className="bg-slate-800 hover:bg-slate-750 transition-colors">
-                                        <td className="px-4 py-3 font-medium text-white">{c.contractId}</td>
-                                        <td className="px-4 py-3">{c.clientName}</td>
-                                        <td className="px-4 py-3">{c.destination}</td>
-                                        <td className="px-4 py-3">{formatDate(c.startDate)} à {formatDate(c.endDate)}</td>
-                                        <td className="px-4 py-3 font-mono text-emerald-400">{formatMoney(c.totalValue)}</td>
-                                        <td className="px-4 py-3">
-                                            <Button variant="secondary" className="text-xs py-1" onClick={() => generateContractPDF(c, contractTemplate)}>
-                                                <i data-lucide="Printer" className="w-3 h-3"></i> PDF
-                                            </Button>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {contracts.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-slate-500">Nenhum contrato encontrado.</td></tr>}
-                            </tbody>
-                        </table>
-                    </div>
-                </Card>
-            );
-
-            const FinanceView = () => {
-                const totalPrevisto = contracts.reduce((acc, c) => acc + c.totalValue, 0);
-                const totalRecebidoSignal = contracts.filter(c => c.statusSignal === 'paid').reduce((acc, c) => acc + c.signalValue, 0);
-                const totalRecebidoRest = contracts.filter(c => c.statusRemaining === 'paid').reduce((acc, c) => acc + c.remainingValue, 0);
-                const totalRecebido = totalRecebidoSignal + totalRecebidoRest;
-
-                return (
-                    <div className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <Card className="bg-emerald-900/30 border-emerald-800/50">
-                                <h3 className="text-emerald-400 font-bold uppercase text-xs">Total Recebido (Caixa)</h3>
-                                <p className="text-2xl text-white font-mono">{formatMoney(totalRecebido)}</p>
-                            </Card>
-                            <Card className="bg-slate-800 border-slate-700">
-                                <h3 className="text-slate-400 font-bold uppercase text-xs">Total em Contratos (Previsto)</h3>
-                                <p className="text-2xl text-white font-mono">{formatMoney(totalPrevisto)}</p>
-                            </Card>
-                        </div>
-
-                        <Card>
-                            <h2 className="text-xl font-bold mb-4 text-blue-400">Controle de Recebimentos</h2>
-                            <div className="overflow-x-auto rounded border border-slate-700">
-                                <table className="w-full text-sm text-left text-slate-300">
-                                    <thead className="bg-slate-900 text-xs uppercase text-slate-400">
-                                        <tr>
-                                            <th className="p-3">Contrato</th>
-                                            <th className="p-3">Sinal (20%)</th>
-                                            <th className="p-3">Restante</th>
-                                            <th className="p-3">Vencimento Rest.</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-700">
-                                        {contracts.map(c => (
-                                            <tr key={c.id} className="bg-slate-800 hover:bg-slate-750">
-                                                <td className="p-3">
-                                                    <div className="font-bold text-white">{c.contractId}</div>
-                                                    <div className="text-xs text-slate-500">{c.clientName}</div>
-                                                </td>
-                                                <td className="p-3">
-                                                    <div className="mb-1 font-mono">{formatMoney(c.signalValue)}</div>
-                                                    {c.statusSignal === 'paid' ? (
-                                                        <span className="text-xs bg-emerald-900/50 text-emerald-400 border border-emerald-800 px-2 py-1 rounded flex w-fit items-center gap-1">
-                                                            <i data-lucide="CheckCircle" className="w-3 h-3"></i> Pago
-                                                            <button onClick={() => generateReceiptPDF(c, 'signal', c.signalValue)} className="ml-2 hover:text-white text-emerald-300"><i data-lucide="Printer" className="w-3 h-3"></i></button>
-                                                        </span>
-                                                    ) : (
-                                                        <Button variant="primary" className="text-xs py-1 px-3" onClick={() => updatePaymentStatus(c.id, 'statusSignal', 'paid')}>
-                                                            Receber
-                                                        </Button>
-                                                    )}
-                                                </td>
-                                                <td className="p-3">
-                                                    <div className="mb-1 font-mono">{formatMoney(c.remainingValue)}</div>
-                                                    {c.statusRemaining === 'paid' ? (
-                                                        <span className="text-xs bg-emerald-900/50 text-emerald-400 border border-emerald-800 px-2 py-1 rounded flex w-fit items-center gap-1">
-                                                            <i data-lucide="CheckCircle" className="w-3 h-3"></i> Pago
-                                                            <button onClick={() => generateReceiptPDF(c, 'remaining', c.remainingValue)} className="ml-2 hover:text-white text-emerald-300"><i data-lucide="Printer" className="w-3 h-3"></i></button>
-                                                        </span>
-                                                    ) : (
-                                                        <Button variant="primary" className="text-xs py-1 px-3" onClick={() => updatePaymentStatus(c.id, 'statusRemaining', 'paid')}>
-                                                            Receber
-                                                        </Button>
-                                                    )}
-                                                </td>
-                                                <td className="p-3">
-                                                    <span className={new Date(c.dueRestDate) < new Date() && c.statusRemaining !== 'paid' ? "text-red-400 font-bold" : ""}>
-                                                        {formatDate(c.dueRestDate)}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </Card>
-                    </div>
-                );
-            };
-
-            const CalendarView = () => {
-                const sortedTrips = [...contracts].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
-
-                return (
-                    <Card>
-                        <h2 className="text-xl font-bold mb-4 text-blue-400">Agenda de Viagens</h2>
-                        <div className="space-y-4">
-                            {sortedTrips.map(c => (
-                                <div key={c.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 bg-slate-700/50 border border-slate-600 rounded-lg hover:bg-slate-700 transition">
-                                    <div className="flex items-center gap-4">
-                                        <div className="bg-slate-800 border border-slate-600 text-blue-400 p-3 rounded-lg text-center min-w-[80px]">
-                                            <div className="text-xs uppercase font-bold text-slate-500">{parseDateBR(c.startDate).toLocaleString('pt-BR', { month: 'short' })}</div>
-                                            <div className="text-2xl font-bold">{parseDateBR(c.startDate).getDate()}</div>
-                                        </div>
-                                        <div>
-                                            <h3 className="font-bold text-lg text-white">{c.destination}</h3>
-                                            <p className="text-slate-400 text-sm">Contrato: {c.contractId} | {c.clientName}</p>
-                                        </div>
-                                    </div>
-                                    <div className="mt-2 md:mt-0 text-right">
-                                        <span className="text-sm bg-slate-800 border border-slate-600 px-3 py-1 rounded text-slate-300">Retorno: {formatDate(c.endDate)}</span>
-                                    </div>
-                                </div>
-                            ))}
-                            {sortedTrips.length === 0 && <p className="text-center text-slate-500 py-8">Nenhuma viagem agendada.</p>}
-                        </div>
-                    </Card>
-                );
-            };
-            
-            const SettingsView = () => (
-                <Card>
-                    <h2 className="text-xl font-bold mb-4 text-blue-400">Configurar Contrato</h2>
-                    <p className="text-sm text-slate-400 mb-2">
-                        Edite o texto padrão do contrato. Use as variáveis: {'{{NOME}}'}, {'{{CPF}}'}, {'{{DESTINO}}'}, {'{{ORIGEM}}'}, {'{{DATA_IDA}}'}, {'{{DATA_VOLTA}}'}, {'{{VALOR_TOTAL}}'}, {'{{SINAL}}'}, {'{{CONTRATO_ID}}'}.
-                    </p>
-                    <textarea 
-                        className="w-full h-64 p-4 bg-slate-900 border border-slate-600 text-slate-200 rounded font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                        value={contractTemplate}
-                        onChange={(e) => setContractTemplate(e.target.value)}
-                    />
-                </Card>
-            );
-
-            // HOOK ANTIGO FOI REMOVIDO DAQUI
-            // O useEffect que chamava window.lucide.createIcons() foi movido para o topo do componente App
-
             return (
                 <div className="flex min-h-screen bg-[#0f172a]">
-                    <Sidebar />
+                    <Sidebar view={view} setView={setView} handleLogout={handleLogout} />
                     <div className="flex-1 ml-64 p-8">
                         <div className="mb-8 flex justify-between items-center border-b border-slate-800 pb-4">
                             <h1 className="text-3xl font-bold text-white tracking-tight capitalize">
@@ -628,12 +625,12 @@
                              </div>
                         )}
 
-                        {view === 'dashboard' && <DashboardView />}
-                        {view === 'new_contract' && <NewContractView />}
-                        {view === 'contracts' && <ContractsView />}
-                        {view === 'finance' && <FinanceView />}
-                        {view === 'calendar' && <CalendarView />}
-                        {view === 'settings' && <SettingsView />}
+                        {view === 'dashboard' && <DashboardView contracts={contracts} />}
+                        {view === 'new_contract' && <NewContractView newContract={newContract} setNewContract={setNewContract} handleCreateContract={handleCreateContract} loading={loading} />}
+                        {view === 'contracts' && <ContractsView contracts={contracts} contractTemplate={contractTemplate} />}
+                        {view === 'finance' && <FinanceView contracts={contracts} updatePaymentStatus={updatePaymentStatus} />}
+                        {view === 'calendar' && <CalendarView contracts={contracts} />}
+                        {view === 'settings' && <SettingsView contractTemplate={contractTemplate} setContractTemplate={setContractTemplate} />}
                     </div>
                 </div>
             );
